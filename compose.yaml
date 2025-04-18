@@ -1,52 +1,58 @@
 services:
-  php:
-    image: ${IMAGES_PREFIX:-}app-php
-    depends_on:
-      - database
-    restart: unless-stopped
+  dominus-api:
+    build:
+      context: docker/php
+    volumes:
+      - ./api:/var/www/dominus-api
+    ports:
+      - "9000"
+    user: "www-data"
     environment:
-      PWA_UPSTREAM: pwa:3000
-      SERVER_NAME: ${SERVER_NAME:-localhost}, php:80
+      SYMFONY_ENV: dev
+      INIT_XDEBUG_ACTIVATED: 1
+      DATABASE_HOST: database
+      DATABASE_NAME: dominus
+      DATABASE_USER: admin
+      DATABASE_PASSWORD: password
       MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
-      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-^${SERVER_NAME:-example\.com|localhost}|php$$}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=${POSTGRES_CHARSET:-utf8}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-^${SERVER_NAME:-dominus\-api\-api\-nginx\-1|localhost}|php$$}
       MERCURE_URL: ${CADDY_MERCURE_URL:-http://php/.well-known/mercure}
       MERCURE_PUBLIC_URL: ${CADDY_MERCURE_PUBLIC_URL:-https://${SERVER_NAME:-localhost}/.well-known/mercure}
       MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+    networks:
+      - dominus-network
+  
+  api-nginx:
+    image: nginx:stable-alpine
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dominus-api.rule=Host(`api.dominus.localhost`)"
+      - "traefik.http.routers.dominus-api.entrypoints=websecure"
+      - "traefik.http.routers.dominus-api.tls.certresolver=le"
     volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-    ports:
-      # HTTP
-      - target: 80
-        published: ${HTTP_PORT:-80}
-        protocol: tcp
-      # HTTPS
-      - target: 443
-        published: ${HTTPS_PORT:-443}
-        protocol: tcp
-      # HTTP/3
-      - target: 443
-        published: ${HTTP3_PORT:-443}
-        protocol: udp
-
-  pwa:
-    image: ${IMAGES_PREFIX:-}app-pwa
-    environment:
-      NEXT_PUBLIC_ENTRYPOINT: http://php
+      - ./api:/var/www/dominus-api
+      - ./docker/nginx/dominus-api.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/certificates:/etc/nginx/certificates
+    depends_on:
+      - dominus-api
+      - database
+    networks:
+       - dominus-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 ###> doctrine/doctrine-bundle ###
   database:
     image: postgres:${POSTGRES_VERSION:-16}-alpine
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-app}
+      - POSTGRES_DB=dominus
       # You should definitely change the password in production
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-!ChangeMe!}
-      - POSTGRES_USER=${POSTGRES_USER:-app}
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=admin
     healthcheck:
-      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+      test: ["CMD", "pg_isready", "-d", "dominus", "-U", "admin"]
       timeout: 5s
       retries: 5
       start_period: 60s
@@ -54,6 +60,8 @@ services:
       - database_data:/var/lib/postgresql/data:rw
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
       # - ./api/docker/db/data:/var/lib/postgresql/data:rw
+    networks:
+      - dominus-network
 ###< doctrine/doctrine-bundle ###
 
 # Mercure is installed as a Caddy module, prevent the Flex recipe from installing another service
@@ -61,10 +69,12 @@ services:
 ###< symfony/mercure-bundle ###
 
 volumes:
-  caddy_data:
-  caddy_config:
 ###> doctrine/doctrine-bundle ###
   database_data:
 ###< doctrine/doctrine-bundle ###
 ###> symfony/mercure-bundle ###
 ###< symfony/mercure-bundle ###
+
+networks:
+  dominus-network:
+    external: true
