@@ -18,18 +18,18 @@ use Symfony\Component\Serializer\Attribute\Groups;
         new GetCollection(),
         new Get()
     ],
-    normalizationContext: ['groups' => ['role:read']]
+    normalizationContext: ['groups' => ['group:list', 'group:edit']]
 )]
 class Role
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    #[Groups(['role:read'])]
+    #[Groups(['group:edit'])]
     private ?int $id;
 
     #[ORM\Column(length: 50)]
-    #[Groups(['role:read'])]
+    #[Groups(['group:list', 'group:edit'])]
     private ?string $code;
 
     /**

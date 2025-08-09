@@ -3,11 +3,16 @@
 namespace App\Entity\User;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\ApiFilter;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Gedmo\Mapping\Annotation\Slug;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Doctrine\Common\Collections\ArrayCollection;
+use JMS\Serializer\Annotations as JMS;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 
 /**
  * Class Group
@@ -15,23 +20,34 @@ use Doctrine\Common\Collections\ArrayCollection;
 #[ORM\Entity]
 #[ORM\Table(name: 'user_group')]
 #[ApiResource(
-    normalizationContext: ['groups' => ['group:read']],
-    denormalizationContext: ['groups' => ['group:create', 'group:update']]
+    normalizationContext: ['groups' => ['group:list']],
+    denormalizationContext: ['groups' => ['group:create', 'group:update']],
+    paginationItemsPerPage: 10,
+    paginationClientItemsPerPage: true,
+    operations: [
+        new Get(
+            normalizationContext: ['groups' => ['group:list', 'group:edit']]
+        ),
+        new GetCollection(
+            normalizationContext: ['groups' => ['group:list']]
+        ),
+    ]
 )]
+#[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'roles' => 'exact'])]
 class Group
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    #[Groups(['group:read'])]
+    #[Groups(['group:list'])]
     private int $id;
 
     #[ORM\Column(length: 50, nullable: false)]
-    #[Groups(['group:read', 'group:create', 'group:update'])]
+    #[Groups(['group:list', 'group:create', 'group:update'])]
     private string $name;
 
     #[ORM\Column(length: 50, nullable: false)]
-    #[Groups(['group:read'])]
+    #[Groups(['group:list'])]
     #[Slug(fields: ['name'])]
     private string $slug;
 
@@ -39,7 +55,7 @@ class Group
     #[ORM\JoinTable(name: "user_group_roles")]
     #[ORM\JoinColumn(name: "group_id")]
     #[ORM\InverseJoinColumn(name: "role_id")]
-    #[Groups(['group:read', 'group:create', 'group:update'])]
+    #[Groups(['group:list', 'group:create', 'group:update'])]
     private Collection $roles;
 
     public function __construct()
@@ -93,9 +109,14 @@ class Group
      * @param Collection $roles
      * @return Group
      */
-    public function setRoles(Collection $roles): Group
+    public function setRoles(iterable $roles): Group
     {
-        $this->roles = $roles;
+        if ($roles instanceof Collection) {
+            $this->roles = $roles;
+        } else {
+            $this->roles = new ArrayCollection(is_array($roles) ? $roles : iterator_to_array($roles));
+        }
+
         return $this;
     }
 }
