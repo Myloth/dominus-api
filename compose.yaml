@@ -1,58 +1,39 @@
 services:
   dominus-api:
     build:
-      context: docker/php
+      context: api
     volumes:
-      - ./api:/var/www/dominus-api
-    ports:
-      - "9000"
-    user: "www-data"
+      - ./api:/app
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
     environment:
-      SYMFONY_ENV: dev
-      INIT_XDEBUG_ACTIVATED: 1
-      DATABASE_HOST: database
-      DATABASE_NAME: dominus
-      DATABASE_USER: admin
-      DATABASE_PASSWORD: password
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@database:5432/${POSTGRES_DB:-dominus}?serverVersion=${POSTGRES_VERSION:-16}&charset=${POSTGRES_CHARSET:-utf8}
       MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
-      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-^${SERVER_NAME:-dominus\-api\-api\-nginx\-1|localhost}|php$$}
       MERCURE_URL: ${CADDY_MERCURE_URL:-http://php/.well-known/mercure}
       MERCURE_PUBLIC_URL: ${CADDY_MERCURE_PUBLIC_URL:-https://${SERVER_NAME:-localhost}/.well-known/mercure}
       MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
-    networks:
-      - dominus-network
-  
-  api-nginx:
-    image: nginx:stable-alpine
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dominus-api.rule=Host(`api.dominus.localhost`)"
       - "traefik.http.routers.dominus-api.entrypoints=websecure"
+      - "traefik.http.routers.dominus-api.tls=true"
       - "traefik.http.routers.dominus-api.tls.certresolver=le"
-    volumes:
-      - ./api:/var/www/dominus-api
-      - ./docker/nginx/dominus-api.conf:/etc/nginx/conf.d/default.conf
-      - ./docker/nginx/certificates:/etc/nginx/certificates
-    depends_on:
-      - dominus-api
-      - database
+      - "traefik.http.services.dominus-api.loadbalancer.server.port=80"
     networks:
-       - dominus-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
+      - dominus-network
+  
 ###> doctrine/doctrine-bundle ###
   database:
     image: postgres:${POSTGRES_VERSION:-16}-alpine
     environment:
-      - POSTGRES_DB=dominus
+      - POSTGRES_DB=${POSTGRES_DB:-dominus}
       # You should definitely change the password in production
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
     healthcheck:
-      test: ["CMD", "pg_isready", "-d", "dominus", "-U", "admin"]
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-dominus}", "-U", "${POSTGRES_USER:-admin}"]
       timeout: 5s
       retries: 5
       start_period: 60s
@@ -69,6 +50,8 @@ services:
 ###< symfony/mercure-bundle ###
 
 volumes:
+  caddy_data:
+  caddy_config:
 ###> doctrine/doctrine-bundle ###
   database_data:
 ###< doctrine/doctrine-bundle ###
