@@ -17,7 +17,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table(name: '`user`')]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_USERNAME', fields: ['username'])]
 #[ApiResource(
-    normalizationContext: ['groups' => ['user:read']],
+    normalizationContext: ['groups' => ['user:list', 'group:list']],
     denormalizationContext: ['groups' => ['user:create', 'user:update']]
 )]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
@@ -27,15 +27,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['user:read'])]
+    #[Groups(['user:list'])]
     private int $id;
 
     #[ORM\Column(length: 180, nullable: false, unique: true)]
-    #[Groups(['user:read', 'user:create'])]
+    #[Groups(['user:list', 'user:create'])]
     private string $username;
 
     #[ORM\Column(length: 100, nullable: false)]
-    #[Groups(['user:read', 'user:create', 'user:update'])]
+    #[Groups(['user:list', 'user:create', 'user:update'])]
     #[Assert\Email(message: "The email '{{ value }}' is not a valid email.")]
     private string $email;
 
@@ -43,7 +43,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinTable(name: "user_user_groups")]
     #[ORM\JoinColumn(name: "user_id", referencedColumnName: "id")]
     #[ORM\InverseJoinColumn(name: "group_id", referencedColumnName: "id")]
-    #[Groups(['user:read', 'user:create', 'user:update'])]
+    #[Groups(['user:list', 'user:create', 'user:update'])]
     private Collection $groups;
 
     #[ORM\Column]
@@ -129,9 +129,29 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->groups;
     }
 
-    public function setGroups(Collection $groups): User
+    public function setGroups(iterable $groups): User
     {
-        $this->groups = $groups;
+        if ($groups instanceof Collection) {
+            $this->groups = $groups;
+        } else {
+            $this->groups = new ArrayCollection(is_array($groups) ? $groups : iterator_to_array($groups));
+        }
+
+        return $this;
+    }
+
+    public function addGroup(Group $group): User
+    {
+        if (!$this->groups->contains($group)) {
+            $this->groups->add($group);
+        }
+        return $this;
+    }
+
+    public function removeGroup(Group $group): User
+    {
+        $this->groups->removeElement($group);
+
         return $this;
     }
 

@@ -39,7 +39,7 @@ class Group
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: 'integer')]
-    #[Groups(['group:list'])]
+    #[Groups(['group:list', 'user:create', 'user:update'])]
     private int $id;
 
     #[ORM\Column(length: 50, nullable: false)]
