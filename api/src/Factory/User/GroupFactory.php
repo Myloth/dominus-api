@@ -3,6 +3,8 @@
 namespace App\Factory\User;
 
 use App\Entity\User\Group;
+use App\Enum\RoleEnum;
+use Doctrine\Common\Collections\Criteria;
 use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 use Doctrine\Common\Collections\ArrayCollection;
 
@@ -11,15 +13,6 @@ use Doctrine\Common\Collections\ArrayCollection;
  */
 final class GroupFactory extends PersistentObjectFactory
 {
-    /**
-     * @see https://symfony.com/bundles/ZenstruckFoundryBundle/current/index.html#factories-as-services
-     *
-     * @todo inject services if required
-     */
-    public function __construct()
-    {
-    }
-
     #[\Override]
     public static function class(): string
     {
@@ -37,7 +30,10 @@ final class GroupFactory extends PersistentObjectFactory
         return [
             'name' => self::faker()->word(50),
             'slug' => self::faker()->text(50),
-            'roles' => new ArrayCollection(RoleFactory::randomRange(1, 3)),
+            'roles' => new ArrayCollection(RoleFactory::randomSet(
+                random_int(1, 2),
+                ['code' => [RoleEnum::ROLE_ADMIN->value, RoleEnum::ROLE_MODERATOR->value]]
+            )),
         ];
     }
 

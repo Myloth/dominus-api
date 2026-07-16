@@ -2,6 +2,7 @@
 
 namespace App\Story;
 
+use Symfony\Component\String\Slugger\AsciiSlugger;
 use Zenstruck\Foundry\Story;
 use App\Factory\User\RoleFactory;
 use App\Factory\User\GroupFactory;
@@ -13,8 +14,14 @@ final class DefaultUserStory extends Story
 {
     public function build(): void
     {
-        RoleFactory::createMany(10);
-        GroupFactory::createMany(10);
+        $slugger = new AsciiSlugger();
+        self::addToPool('roles', RoleFactory::createSpecific());
+
+        $groups = ['Administrateurs', 'Modérateurs'];
+        foreach ($groups as $groupName) {
+            $this->addToPool('groups', GroupFactory::createOne(['name' => $groupName, 'slug' => $slugger->slug($groupName)]));
+        }
+        GroupFactory::createOne(['name' => 'SuperAdmin', 'slug' => $slugger->slug('superadmin')]);
         UserFactory::createMany(10);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Entity\User;
 
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\Collection;
@@ -20,6 +22,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     normalizationContext: ['groups' => ['user:list', 'group:list']],
     denormalizationContext: ['groups' => ['user:create', 'user:update']]
 )]
+#[ApiFilter(SearchFilter::class, properties: ['name' => 'partial', 'groups' => 'exact'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use TimestampableEntity;

@@ -1,6 +1,6 @@
 # Production environment override
 services:
-  php:
+  dominus-api:
     build:
       context: ./api
       target: frankenphp_prod
