@@ -8,6 +8,7 @@ services:
       - caddy_config:/config
     restart: unless-stopped
     environment:
+      SERVER_NAME: https://${SERVER_NAME:-api.dominus.localhost}, http://dominus-api
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@database:5432/${POSTGRES_DB:-dominus}?serverVersion=${POSTGRES_VERSION:-16}&charset=${POSTGRES_CHARSET:-utf8}
       MERCURE_PUBLISHER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_SUBSCRIBER_JWT_KEY: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
@@ -16,11 +17,19 @@ services:
       MERCURE_JWT_SECRET: ${CADDY_MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dominus-api.rule=Host(`api.dominus.localhost`)"
-      - "traefik.http.routers.dominus-api.entrypoints=websecure"
-      - "traefik.http.routers.dominus-api.tls=true"
-      - "traefik.http.routers.dominus-api.tls.certresolver=le"
-      - "traefik.http.services.dominus-api.loadbalancer.server.port=80"
+      - "traefik.tcp.routers.dominus-api-https.rule=HostSNI(`api.dominus.localhost`)"
+      - "traefik.tcp.routers.dominus-api-https.entrypoints=websecure"
+      - "traefik.tcp.routers.dominus-api-https.tls=true"
+      # Active la retransmission brute sans déchiffrement
+      - "traefik.tcp.routers.dominus-api-https.tls.passthrough=true"
+      # Redirige vers le port HTTPS interne de FrankenPHP
+      - "traefik.tcp.services.dominus-api-https.loadbalancer.server.port=443"
+
+      # 2. Configuration du routeur HTTP pour redirection automatique (Port 80)
+      - "traefik.http.routers.dominus-api-http.rule=Host(`api.dominus.localhost`)"
+      - "traefik.http.routers.dominus-api-http.entrypoints=web"
+      # Redirige vers le port HTTP de FrankenPHP (qui gérera la redirection HTTP -> HTTPS)
+      - "traefik.http.services.dominus-api-http.loadbalancer.server.port=80"
     networks:
       - dominus-network
   

@@ -11,15 +11,6 @@ use Doctrine\Common\Collections\ArrayCollection;
  */
 final class UserFactory extends PersistentObjectFactory
 {
-    /**
-     * @see https://symfony.com/bundles/ZenstruckFoundryBundle/current/index.html#factories-as-services
-     *
-     * @todo inject services if required
-     */
-    public function __construct()
-    {
-    }
-
     #[\Override]
     public static function class(): string
     {
@@ -39,7 +30,7 @@ final class UserFactory extends PersistentObjectFactory
             'email' => self::faker()->email(),
             'password' => self::faker()->text(),
             'updatedAt' => self::faker()->dateTime(),
-            'username' => self::faker()->text(180),
+            'username' => self::faker()->username(),
             'groups' => new ArrayCollection(GroupFactory::randomRange(1, 2)),
         ];
     }

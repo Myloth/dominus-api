@@ -3,6 +3,7 @@
 namespace App\Factory\User;
 
 use App\Entity\User\Role;
+use App\Enum\RoleEnum;
 use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 
 /**
@@ -23,6 +24,16 @@ final class RoleFactory extends PersistentObjectFactory
     public static function class(): string
     {
         return Role::class;
+    }
+
+    public static function createSpecific(): array
+    {
+        $roles = [];
+        foreach (RoleEnum::cases() as $roleEnum) {
+            $roles[] = self::createOne(['code' => $roleEnum->value]);
+        }
+
+        return $roles;
     }
 
     /**
