@@ -50,6 +50,8 @@ services:
       - database_data:/var/lib/postgresql/data:rw
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
       # - ./api/docker/db/data:/var/lib/postgresql/data:rw
+    ports:
+      - "5432:5432"
     networks:
       - dominus-network
 ###< doctrine/doctrine-bundle ###

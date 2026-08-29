@@ -6,13 +6,13 @@ use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Gedmo\Timestampable\Traits\TimestampableEntity;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Serializer\Attribute\Groups;
-use Doctrine\Common\Collections\ArrayCollection;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
@@ -43,16 +43,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private string $email;
 
     #[ORM\ManyToMany(targetEntity: Group::class)]
-    #[ORM\JoinTable(name: "user_user_groups")]
-    #[ORM\JoinColumn(name: "user_id", referencedColumnName: "id")]
-    #[ORM\InverseJoinColumn(name: "group_id", referencedColumnName: "id")]
+    #[ORM\JoinTable(name: 'user_user_groups')]
+    #[ORM\JoinColumn(name: 'user_id', referencedColumnName: 'id')]
+    #[ORM\InverseJoinColumn(name: 'group_id', referencedColumnName: 'id')]
     #[Groups(['user:list', 'user:create', 'user:update'])]
     private Collection $groups;
 
     #[ORM\Column]
     #[Groups(['user:create'])]
     #[Assert\NotBlank(groups: ['user:create'])]
-    #[Assert\Length(min: 8, minMessage: "Password must be at least {{ limit }} characters long")]
+    #[Assert\Length(min: 8, minMessage: 'Password must be at least {{ limit }} characters long')]
     private ?string $password = null;
 
     public function __construct()
@@ -81,7 +81,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return (string) $this->username;
     }
-
 
     public function getRoles(): array
     {
@@ -124,6 +123,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setEmail(?string $email): User
     {
         $this->email = $email;
+
         return $this;
     }
 
@@ -148,6 +148,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         if (!$this->groups->contains($group)) {
             $this->groups->add($group);
         }
+
         return $this;
     }
 
@@ -157,5 +158,4 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
-
 }

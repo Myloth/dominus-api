@@ -4,9 +4,8 @@ namespace App\Factory\User;
 
 use App\Entity\User\Group;
 use App\Enum\RoleEnum;
-use Doctrine\Common\Collections\Criteria;
-use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 use Doctrine\Common\Collections\ArrayCollection;
+use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 
 /**
  * @extends PersistentObjectFactory<Group>

@@ -3,14 +3,21 @@
 namespace App\Factory\User;
 
 use App\Entity\User\User;
-use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 use Doctrine\Common\Collections\ArrayCollection;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
 
 /**
  * @extends PersistentObjectFactory<User>
  */
 final class UserFactory extends PersistentObjectFactory
 {
+    public function __construct(
+        private readonly UserPasswordHasherInterface $passwordHasher,
+    ) {
+        parent::__construct();
+    }
+
     #[\Override]
     public static function class(): string
     {
@@ -28,9 +35,9 @@ final class UserFactory extends PersistentObjectFactory
         return [
             'createdAt' => self::faker()->dateTime(),
             'email' => self::faker()->email(),
-            'password' => self::faker()->text(),
+            'password' => 'password',
             'updatedAt' => self::faker()->dateTime(),
-            'username' => self::faker()->username(),
+            'username' => self::faker()->userName(),
             'groups' => new ArrayCollection(GroupFactory::randomRange(1, 2)),
         ];
     }
@@ -42,7 +49,11 @@ final class UserFactory extends PersistentObjectFactory
     protected function initialize(): static
     {
         return $this
-            // ->afterInstantiate(function(User $user): void {})
+            ->afterInstantiate(function (User $user): void {
+                if ($user->getPassword()) {
+                    $user->setPassword($this->passwordHasher->hashPassword($user, $user->getPassword()));
+                }
+            })
         ;
     }
 }

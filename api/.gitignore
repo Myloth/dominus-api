@@ -4,7 +4,7 @@
 /.env.local
 /.env.local.php
 /.env.*.local
-/config/secrets/prod/prod.decrypt.private.php
+/config/secrets/*/*.decrypt.private.php
 /public/bundles/
 /var/
 /vendor/
@@ -19,3 +19,8 @@
 .phpunit.result.cache
 /phpunit.xml
 ###< symfony/phpunit-bridge ###
+
+###> league/oauth2-server-bundle ###
+/config/jwt/*.key
+/config/jwt/
+###< league/oauth2-server-bundle ###
