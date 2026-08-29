@@ -54,20 +54,51 @@ class TagTest extends ApiTestCase
         return $user;
     }
 
-    public function testUnauthorizedAccess(): void
+    public function testPublicReadAccess(): void
     {
         $client = static::createClient();
         $client->request('GET', '/tags');
+        $this->assertResponseStatusCodeSame(200);
+    }
+
+    public function testUnauthorizedWriteAccess(): void
+    {
+        $client = static::createClient();
+        $client->request('POST', '/tags', [
+            'json' => [
+                'name' => 'Unauthorized Tag',
+                'slug' => 'unauthorized-tag-'.uniqid(),
+                'entityType' => 'quest',
+            ],
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+            ],
+        ]);
         $this->assertResponseStatusCodeSame(401);
     }
 
-    public function testForbiddenAccessForNonAdmin(): void
+    public function testForbiddenWriteAccessForNonAdmin(): void
     {
         $client = static::createClient();
         $user = $this->createRegularUser();
 
+        // GET allowed for non-admin
         $client->request('GET', '/tags', [
             'auth_basic' => [$user->getUsername(), 'password123'],
+        ]);
+        $this->assertResponseStatusCodeSame(200);
+
+        // POST forbidden for non-admin
+        $client->request('POST', '/tags', [
+            'auth_basic' => [$user->getUsername(), 'password123'],
+            'json' => [
+                'name' => 'Forbidden Tag',
+                'slug' => 'forbidden-tag-'.uniqid(),
+                'entityType' => 'quest',
+            ],
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+            ],
         ]);
         $this->assertResponseStatusCodeSame(403);
     }
@@ -105,16 +136,12 @@ class TagTest extends ApiTestCase
         $this->assertArrayHasKey('createdAt', $data);
         $tagId = $data['id'];
 
-        // GET Collection
-        $client->request('GET', '/tags', [
-            'auth_basic' => [$admin->getUsername(), 'password123'],
-        ]);
+        // GET Collection (public or admin)
+        $client->request('GET', '/tags');
         $this->assertResponseStatusCodeSame(200);
 
         // GET Item
-        $client->request('GET', '/tags/'.$tagId, [
-            'auth_basic' => [$admin->getUsername(), 'password123'],
-        ]);
+        $client->request('GET', '/tags/'.$tagId);
         $this->assertResponseStatusCodeSame(200);
         $this->assertJsonContains([
             'name' => 'Main Quest',

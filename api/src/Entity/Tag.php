@@ -21,11 +21,10 @@ use Symfony\Component\Validator\Constraints as Assert;
     operations: [
         new GetCollection(),
         new Get(),
-        new Post(),
-        new Put(),
-        new Patch(),
-    ],
-    security: "is_granted('ROLE_ADMIN')"
+        new Post(security: "is_granted('ROLE_ADMIN')"),
+        new Put(security: "is_granted('ROLE_ADMIN')"),
+        new Patch(security: "is_granted('ROLE_ADMIN')"),
+    ]
 )]
 class Tag
 {

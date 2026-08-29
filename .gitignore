@@ -5,3 +5,4 @@
 /.env.*.local
 /helm/api-platform/charts/*
 !/helm/api-platform/charts/.gitignore
+GEMINI.md
