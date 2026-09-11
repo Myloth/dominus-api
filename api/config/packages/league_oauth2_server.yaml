@@ -1,0 +1,19 @@
+league_oauth2_server:
+    authorization_server:
+        private_key: '%kernel.project_dir%/config/jwt/private.key'
+        private_key_passphrase: null
+        encryption_key: '%env(OAUTH_ENCRYPTION_KEY)%'
+        enable_client_credentials_grant: true
+        enable_password_grant: true
+        enable_refresh_token_grant: true
+        enable_auth_code_grant: false
+        access_token_ttl: PT1H
+        refresh_token_ttl: P1M
+    resource_server:
+        public_key: '%kernel.project_dir%/config/jwt/public.key'
+    scopes:
+        available: ['administration', 'game']
+        default: ['game']
+    persistence:
+        doctrine:
+            entity_manager: default
