@@ -112,6 +112,17 @@ class OAuth2Test extends ApiTestCase
         $this->assertArrayHasKey('access_token', $data);
         $accessToken = $data['access_token'];
 
+        // Assert extra claims in JWT payload
+        $parts = explode('.', $accessToken);
+        $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+        $this->assertIsArray($payload);
+        $this->assertArrayHasKey('roles', $payload);
+        $this->assertContains(RoleEnum::ROLE_ADMIN->value, $payload['roles']);
+        $this->assertArrayHasKey('email', $payload);
+        $this->assertSame($admin->getEmail(), $payload['email']);
+        $this->assertArrayHasKey('user_id', $payload);
+        $this->assertSame($admin->getId(), $payload['user_id']);
+
         // 2. Request protected endpoint using the User Bearer Token
         $apiClient = static::createClient();
         $apiClient->request('POST', '/tags', [
