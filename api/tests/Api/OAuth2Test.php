@@ -131,15 +131,14 @@ class OAuth2Test extends ApiTestCase
                 'Content-Type' => 'application/ld+json',
             ],
             'json' => [
-                'name' => 'OAuth2 Admin Tag',
-                'slug' => 'oauth2-admin-tag-'.uniqid(),
+                'name' => 'OAuth2 Admin Tag '.uniqid(),
                 'entityType' => 'quest',
             ],
         ]);
 
         $this->assertResponseStatusCodeSame(201);
         $this->assertJsonContains([
-            'name' => 'OAuth2 Admin Tag',
+            'entityType' => 'quest',
         ]);
     }
 }
