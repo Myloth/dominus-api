@@ -110,8 +110,7 @@ class QuestAndEventTest extends ApiTestCase
         $tagResponse = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Main Quest Tag',
-                'slug' => 'main-quest-tag-'.uniqid(),
+                'name' => 'Main Quest Tag '.uniqid(),
                 'entityType' => 'quest',
             ],
             'headers' => [

@@ -67,7 +67,6 @@ class TagTest extends ApiTestCase
         $client->request('POST', '/tags', [
             'json' => [
                 'name' => 'Unauthorized Tag',
-                'slug' => 'unauthorized-tag-'.uniqid(),
                 'entityType' => 'quest',
             ],
             'headers' => [
@@ -93,7 +92,6 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$user->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Forbidden Tag',
-                'slug' => 'forbidden-tag-'.uniqid(),
                 'entityType' => 'quest',
             ],
             'headers' => [
@@ -108,13 +106,15 @@ class TagTest extends ApiTestCase
         $client = static::createClient();
         $admin = $this->createAdminUser();
 
-        $slug = 'main-quest-'.uniqid();
+        $uniqid = uniqid();
+        $expectedSlug = 'main-quest-'.strtolower($uniqid);
 
+        // Submit tag with a custom slug that should be ignored and auto-generated from name
         $response = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Main Quest',
-                'slug' => $slug,
+                'name' => 'Main Quest '.$uniqid,
+                'slug' => 'custom-slug-should-be-ignored',
                 'entityType' => 'quest',
                 'category' => 'story',
             ],
@@ -125,27 +125,34 @@ class TagTest extends ApiTestCase
 
         $this->assertResponseStatusCodeSame(201);
         $this->assertJsonContains([
-            'name' => 'Main Quest',
-            'slug' => $slug,
+            'name' => 'Main Quest '.$uniqid,
+            'slug' => $expectedSlug,
             'entityType' => 'quest',
             'category' => 'story',
         ]);
 
         $data = $response->toArray();
         $this->assertArrayHasKey('id', $data);
+        $this->assertArrayHasKey('slug', $data);
         $this->assertArrayHasKey('createdAt', $data);
+        $this->assertSame($expectedSlug, $data['slug']);
         $tagId = $data['id'];
 
-        // GET Collection (public or admin)
-        $client->request('GET', '/tags');
+        // GET Collection (listing) - slug must be returned
+        $listResponse = $client->request('GET', '/tags?name=Main Quest '.$uniqid);
         $this->assertResponseStatusCodeSame(200);
+        $listData = $listResponse->toArray();
+        $this->assertArrayHasKey('member', $listData);
+        $this->assertNotEmpty($listData['member']);
+        $this->assertSame($expectedSlug, $listData['member'][0]['slug']);
 
-        // GET Item
+        // GET Item (detail) - slug must be returned
         $client->request('GET', '/tags/'.$tagId);
         $this->assertResponseStatusCodeSame(200);
         $this->assertJsonContains([
-            'name' => 'Main Quest',
-            'slug' => $slug,
+            'id' => $tagId,
+            'name' => 'Main Quest '.$uniqid,
+            'slug' => $expectedSlug,
         ]);
     }
 
@@ -154,14 +161,13 @@ class TagTest extends ApiTestCase
         $client = static::createClient();
         $admin = $this->createAdminUser();
 
-        $originalSlug = 'original-slug-'.uniqid();
-        $updatedSlug = 'updated-slug-'.uniqid();
+        $uniqid = uniqid();
+        $originalSlug = 'original-name-'.strtolower($uniqid);
 
         $response = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Original Name',
-                'slug' => $originalSlug,
+                'name' => 'Original Name '.$uniqid,
                 'entityType' => 'pnj',
             ],
             'headers' => [
@@ -171,13 +177,14 @@ class TagTest extends ApiTestCase
 
         $this->assertResponseStatusCodeSame(201);
         $tagId = $response->toArray()['id'];
+        $this->assertSame($originalSlug, $response->toArray()['slug']);
 
-        // PUT update
+        // PUT update - slug must NOT change even if submitted or name changed
         $client->request('PUT', '/tags/'.$tagId, [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Updated Name',
-                'slug' => $updatedSlug,
+                'name' => 'Updated Name '.$uniqid,
+                'slug' => 'attempted-new-slug',
                 'entityType' => 'pnj',
                 'category' => 'boss',
             ],
@@ -187,16 +194,17 @@ class TagTest extends ApiTestCase
         ]);
         $this->assertResponseStatusCodeSame(200);
         $this->assertJsonContains([
-            'name' => 'Updated Name',
-            'slug' => $updatedSlug,
+            'name' => 'Updated Name '.$uniqid,
+            'slug' => $originalSlug,
             'category' => 'boss',
         ]);
 
-        // PATCH update
+        // PATCH update - slug must remain definitive
         $client->request('PATCH', '/tags/'.$tagId, [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Patched Name',
+                'name' => 'Patched Name '.$uniqid,
+                'slug' => 'another-attempted-slug',
             ],
             'headers' => [
                 'Content-Type' => 'application/merge-patch+json',
@@ -204,7 +212,16 @@ class TagTest extends ApiTestCase
         ]);
         $this->assertResponseStatusCodeSame(200);
         $this->assertJsonContains([
-            'name' => 'Patched Name',
+            'name' => 'Patched Name '.$uniqid,
+            'slug' => $originalSlug,
+        ]);
+
+        // GET Item detail confirms slug is definitively unchanged
+        $client->request('GET', '/tags/'.$tagId);
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertJsonContains([
+            'name' => 'Patched Name '.$uniqid,
+            'slug' => $originalSlug,
         ]);
     }
 
@@ -213,12 +230,11 @@ class TagTest extends ApiTestCase
         $client = static::createClient();
         $admin = $this->createAdminUser();
 
-        // Missing required fields
+        // Missing required fields (name, entityType)
         $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => '',
-                'slug' => '',
                 'entityType' => '',
             ],
             'headers' => [
@@ -227,14 +243,13 @@ class TagTest extends ApiTestCase
         ]);
         $this->assertResponseStatusCodeSame(422);
 
-        // Unique slug validation
-        $uniqueSlug = 'unique-slug-'.uniqid();
+        // Unique slug validation: two tags with the same name produce the same slug
+        $uniqueName = 'Unique Tag Name '.uniqid();
 
         $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Tag 1',
-                'slug' => $uniqueSlug,
+                'name' => $uniqueName,
                 'entityType' => 'event',
             ],
             'headers' => [
@@ -246,8 +261,7 @@ class TagTest extends ApiTestCase
         $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Tag 2',
-                'slug' => $uniqueSlug,
+                'name' => $uniqueName,
                 'entityType' => 'event',
             ],
             'headers' => [
@@ -257,18 +271,15 @@ class TagTest extends ApiTestCase
         $this->assertResponseStatusCodeSame(422);
     }
 
-    public function testDeleteNotAllowed(): void
+    public function testDeleteAllowedAsAdmin(): void
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
 
-        $slug = 'tag-to-delete-'.uniqid();
-
         $response = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Tag To Delete',
-                'slug' => $slug,
+                'name' => 'Tag To Delete '.uniqid(),
                 'entityType' => 'equipment',
             ],
             'headers' => [
@@ -281,6 +292,46 @@ class TagTest extends ApiTestCase
         $client->request('DELETE', '/tags/'.$tagId, [
             'auth_basic' => [$admin->getUsername(), 'password123'],
         ]);
-        $this->assertResponseStatusCodeSame(405);
+        $this->assertResponseStatusCodeSame(204);
+
+        $client->request('GET', '/tags/'.$tagId);
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testFilterTags(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createAdminUser();
+
+        $uniqid = uniqid();
+
+        $client->request('POST', '/tags', [
+            'auth_basic' => [$admin->getUsername(), 'password123'],
+            'json' => [
+                'name' => 'Quest Unique Tag '.$uniqid,
+                'entityType' => 'quest',
+            ],
+            'headers' => ['Content-Type' => 'application/ld+json'],
+        ]);
+        $this->assertResponseStatusCodeSame(201);
+
+        $client->request('POST', '/tags', [
+            'auth_basic' => [$admin->getUsername(), 'password123'],
+            'json' => [
+                'name' => 'PNJ Unique Tag '.$uniqid,
+                'entityType' => 'pnj',
+            ],
+            'headers' => ['Content-Type' => 'application/ld+json'],
+        ]);
+        $this->assertResponseStatusCodeSame(201);
+
+        $response = $client->request('GET', '/tags?entityType=quest&name=Quest Unique Tag '.$uniqid);
+        $this->assertResponseStatusCodeSame(200);
+        $data = $response->toArray();
+        $this->assertGreaterThanOrEqual(1, count($data['member']));
+        foreach ($data['member'] as $member) {
+            $this->assertSame('quest', $member['entityType']);
+            $this->assertArrayHasKey('slug', $member);
+        }
     }
 }
