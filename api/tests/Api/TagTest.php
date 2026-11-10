@@ -3,14 +3,34 @@
 namespace App\Tests\Api;
 
 use ApiPlatform\Symfony\Bundle\Test\ApiTestCase;
+use App\Entity\EntityType;
 use App\Entity\User\Group;
 use App\Entity\User\Role;
 use App\Entity\User\User;
+use App\Enum\EntityTypeEnum;
 use App\Enum\RoleEnum;
 use Doctrine\ORM\EntityManagerInterface;
 
 class TagTest extends ApiTestCase
 {
+    private function getOrCreateEntityType(EntityTypeEnum $typeEnum): EntityType
+    {
+        $container = static::getContainer();
+        /** @var EntityManagerInterface $em */
+        $em = $container->get('doctrine.orm.entity_manager');
+
+        $entityType = $em->getRepository(EntityType::class)->findOneBy(['slug' => $typeEnum->value]);
+        if (null === $entityType) {
+            $entityType = new EntityType();
+            $entityType->setName($typeEnum->label());
+            $entityType->setSlug($typeEnum->value);
+            $em->persist($entityType);
+            $em->flush();
+        }
+
+        return $entityType;
+    }
+
     private function createAdminUser(): User
     {
         $container = static::getContainer();
@@ -61,13 +81,46 @@ class TagTest extends ApiTestCase
         $this->assertResponseStatusCodeSame(200);
     }
 
+    public function testEntityTypeReadOnlyOperations(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createAdminUser();
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
+
+        $client->request('GET', '/entity_types');
+        $this->assertResponseStatusCodeSame(200);
+
+        $client->request('GET', '/entity_types/'.$questType->getId());
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertJsonContains([
+            'id' => $questType->getId(),
+            'name' => EntityTypeEnum::QUEST->label(),
+            'slug' => EntityTypeEnum::QUEST->value,
+        ]);
+
+        // POST is not allowed on EntityType
+        $client->request('POST', '/entity_types', [
+            'auth_basic' => [$admin->getUsername(), 'password123'],
+            'json' => [
+                'name' => 'Custom',
+                'slug' => 'custom',
+            ],
+            'headers' => [
+                'Content-Type' => 'application/ld+json',
+            ],
+        ]);
+        $this->assertResponseStatusCodeSame(405);
+    }
+
     public function testUnauthorizedWriteAccess(): void
     {
         $client = static::createClient();
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
+
         $client->request('POST', '/tags', [
             'json' => [
                 'name' => 'Unauthorized Tag',
-                'entityType' => 'quest',
+                'entityTypes' => ['/entity_types/'.$questType->getId()],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -80,6 +133,7 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $user = $this->createRegularUser();
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
 
         // GET allowed for non-admin
         $client->request('GET', '/tags', [
@@ -92,7 +146,7 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$user->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Forbidden Tag',
-                'entityType' => 'quest',
+                'entityTypes' => ['/entity_types/'.$questType->getId()],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -105,17 +159,21 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
+        $dungeonType = $this->getOrCreateEntityType(EntityTypeEnum::DUNGEON);
+        $questTypeIri = '/entity_types/'.$questType->getId();
+        $dungeonTypeIri = '/entity_types/'.$dungeonType->getId();
 
         $uniqid = uniqid();
         $expectedSlug = 'main-quest-'.strtolower($uniqid);
 
-        // Submit tag with a custom slug that should be ignored and auto-generated from name
+        // Submit tag with multiple entityTypes and a custom slug that should be ignored and auto-generated from name
         $response = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Main Quest '.$uniqid,
                 'slug' => 'custom-slug-should-be-ignored',
-                'entityType' => 'quest',
+                'entityTypes' => [$questTypeIri, $dungeonTypeIri],
                 'category' => 'story',
             ],
             'headers' => [
@@ -127,7 +185,20 @@ class TagTest extends ApiTestCase
         $this->assertJsonContains([
             'name' => 'Main Quest '.$uniqid,
             'slug' => $expectedSlug,
-            'entityType' => 'quest',
+            'entityTypes' => [
+                [
+                    '@id' => $questTypeIri,
+                    'id' => $questType->getId(),
+                    'name' => EntityTypeEnum::QUEST->label(),
+                    'slug' => EntityTypeEnum::QUEST->value,
+                ],
+                [
+                    '@id' => $dungeonTypeIri,
+                    'id' => $dungeonType->getId(),
+                    'name' => EntityTypeEnum::DUNGEON->label(),
+                    'slug' => EntityTypeEnum::DUNGEON->value,
+                ],
+            ],
             'category' => 'story',
         ]);
 
@@ -160,6 +231,8 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
+        $pnjType = $this->getOrCreateEntityType(EntityTypeEnum::PNJ);
+        $pnjTypeIri = '/entity_types/'.$pnjType->getId();
 
         $uniqid = uniqid();
         $originalSlug = 'original-name-'.strtolower($uniqid);
@@ -168,7 +241,7 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Original Name '.$uniqid,
-                'entityType' => 'pnj',
+                'entityTypes' => [$pnjTypeIri],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -185,7 +258,7 @@ class TagTest extends ApiTestCase
             'json' => [
                 'name' => 'Updated Name '.$uniqid,
                 'slug' => 'attempted-new-slug',
-                'entityType' => 'pnj',
+                'entityTypes' => [$pnjTypeIri],
                 'category' => 'boss',
             ],
             'headers' => [
@@ -229,13 +302,15 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
+        $dungeonType = $this->getOrCreateEntityType(EntityTypeEnum::DUNGEON);
+        $dungeonTypeIri = '/entity_types/'.$dungeonType->getId();
 
-        // Missing required fields (name, entityType)
+        // Missing required fields (name, entityTypes)
         $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => '',
-                'entityType' => '',
+                'entityTypes' => [],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -250,7 +325,7 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => $uniqueName,
-                'entityType' => 'event',
+                'entityTypes' => [$dungeonTypeIri],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -262,7 +337,7 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => $uniqueName,
-                'entityType' => 'event',
+                'entityTypes' => [$dungeonTypeIri],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -275,12 +350,13 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
+        $gearType = $this->getOrCreateEntityType(EntityTypeEnum::GEAR);
 
         $response = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Tag To Delete '.uniqid(),
-                'entityType' => 'equipment',
+                'entityTypes' => ['/entity_types/'.$gearType->getId()],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
@@ -302,6 +378,8 @@ class TagTest extends ApiTestCase
     {
         $client = static::createClient();
         $admin = $this->createAdminUser();
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
+        $pnjType = $this->getOrCreateEntityType(EntityTypeEnum::PNJ);
 
         $uniqid = uniqid();
 
@@ -309,7 +387,7 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => 'Quest Unique Tag '.$uniqid,
-                'entityType' => 'quest',
+                'entityTypes' => ['/entity_types/'.$questType->getId()],
             ],
             'headers' => ['Content-Type' => 'application/ld+json'],
         ]);
@@ -319,18 +397,19 @@ class TagTest extends ApiTestCase
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
                 'name' => 'PNJ Unique Tag '.$uniqid,
-                'entityType' => 'pnj',
+                'entityTypes' => ['/entity_types/'.$pnjType->getId()],
             ],
             'headers' => ['Content-Type' => 'application/ld+json'],
         ]);
         $this->assertResponseStatusCodeSame(201);
 
-        $response = $client->request('GET', '/tags?entityType=quest&name=Quest Unique Tag '.$uniqid);
+        $response = $client->request('GET', '/tags?entityTypes.slug=quest&name=Quest Unique Tag '.$uniqid);
         $this->assertResponseStatusCodeSame(200);
         $data = $response->toArray();
         $this->assertGreaterThanOrEqual(1, count($data['member']));
         foreach ($data['member'] as $member) {
-            $this->assertSame('quest', $member['entityType']);
+            $slugs = array_column($member['entityTypes'], 'slug');
+            $this->assertContains('quest', $slugs);
             $this->assertArrayHasKey('slug', $member);
         }
     }

@@ -13,6 +13,8 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use App\Repository\TagRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Gedmo\Mapping\Annotation\Slug;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
@@ -40,7 +42,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ApiFilter(SearchFilter::class, properties: [
     'name' => 'partial',
     'slug' => 'partial',
-    'entityType' => 'exact',
+    'entityTypes' => 'exact',
+    'entityTypes.slug' => 'exact',
 ])]
 class Tag
 {
@@ -61,10 +64,14 @@ class Tag
     #[Groups(['tag:read'])]
     private ?string $slug = null;
 
-    #[ORM\Column(length: 255)]
-    #[Assert\NotBlank]
+    /**
+     * @var Collection<int, EntityType>
+     */
+    #[ORM\ManyToMany(targetEntity: EntityType::class, inversedBy: 'tags')]
+    #[ORM\JoinTable(name: 'tags_entity_types')]
+    #[Assert\Count(min: 1)]
     #[Groups(['tag:read', 'tag:write'])]
-    private ?string $entityType = null;
+    private Collection $entityTypes;
 
     #[ORM\Column(length: 255, nullable: true)]
     #[Groups(['tag:read', 'tag:write'])]
@@ -77,6 +84,7 @@ class Tag
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
+        $this->entityTypes = new ArrayCollection();
     }
 
     #[ORM\PrePersist]
@@ -125,14 +133,37 @@ class Tag
         return $this;
     }
 
-    public function getEntityType(): ?string
+    /**
+     * @return Collection<int, EntityType>
+     */
+    public function getEntityTypes(): Collection
     {
-        return $this->entityType;
+        return $this->entityTypes;
     }
 
-    public function setEntityType(string $entityType): self
+    public function setEntityTypes(iterable $entityTypes): self
     {
-        $this->entityType = $entityType;
+        if ($entityTypes instanceof Collection) {
+            $this->entityTypes = $entityTypes;
+        } else {
+            $this->entityTypes = new ArrayCollection(is_array($entityTypes) ? $entityTypes : iterator_to_array($entityTypes));
+        }
+
+        return $this;
+    }
+
+    public function addEntityType(EntityType $entityType): self
+    {
+        if (!$this->entityTypes->contains($entityType)) {
+            $this->entityTypes->add($entityType);
+        }
+
+        return $this;
+    }
+
+    public function removeEntityType(EntityType $entityType): self
+    {
+        $this->entityTypes->removeElement($entityType);
 
         return $this;
     }

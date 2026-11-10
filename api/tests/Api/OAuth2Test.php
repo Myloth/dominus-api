@@ -3,9 +3,11 @@
 namespace App\Tests\Api;
 
 use ApiPlatform\Symfony\Bundle\Test\ApiTestCase;
+use App\Entity\EntityType;
 use App\Entity\User\Group;
 use App\Entity\User\Role;
 use App\Entity\User\User;
+use App\Enum\EntityTypeEnum;
 use App\Enum\RoleEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
@@ -14,6 +16,24 @@ use League\Bundle\OAuth2ServerBundle\ValueObject\Grant;
 
 class OAuth2Test extends ApiTestCase
 {
+    private function getOrCreateEntityType(EntityTypeEnum $typeEnum): EntityType
+    {
+        $container = static::getContainer();
+        /** @var EntityManagerInterface $em */
+        $em = $container->get('doctrine.orm.entity_manager');
+
+        $entityType = $em->getRepository(EntityType::class)->findOneBy(['slug' => $typeEnum->value]);
+        if (null === $entityType) {
+            $entityType = new EntityType();
+            $entityType->setName($typeEnum->label());
+            $entityType->setSlug($typeEnum->value);
+            $em->persist($entityType);
+            $em->flush();
+        }
+
+        return $entityType;
+    }
+
     private function createAdminUser(): User
     {
         $container = static::getContainer();
@@ -124,6 +144,7 @@ class OAuth2Test extends ApiTestCase
         $this->assertSame($admin->getId(), $payload['user_id']);
 
         // 2. Request protected endpoint using the User Bearer Token
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
         $apiClient = static::createClient();
         $apiClient->request('POST', '/tags', [
             'headers' => [
@@ -132,13 +153,17 @@ class OAuth2Test extends ApiTestCase
             ],
             'json' => [
                 'name' => 'OAuth2 Admin Tag '.uniqid(),
-                'entityType' => 'quest',
+                'entityTypes' => ['/entity_types/'.$questType->getId()],
             ],
         ]);
 
         $this->assertResponseStatusCodeSame(201);
         $this->assertJsonContains([
-            'entityType' => 'quest',
+            'entityTypes' => [
+                [
+                    'slug' => 'quest',
+                ],
+            ],
         ]);
     }
 }
