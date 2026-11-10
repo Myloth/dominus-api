@@ -2,6 +2,7 @@
 
 namespace App\Story;
 
+use App\Factory\EntityTypeFactory;
 use App\Factory\User\GroupFactory;
 use App\Factory\User\RoleFactory;
 use App\Factory\User\UserFactory;
@@ -29,6 +30,7 @@ final class DefaultUserStory extends Story
     {
         $slugger = new AsciiSlugger();
         self::addToPool('roles', RoleFactory::createSpecific());
+        self::addToPool('entity_types', EntityTypeFactory::createSpecific());
 
         $groups = ['Administrateurs', 'Modérateurs'];
         foreach ($groups as $groupName) {

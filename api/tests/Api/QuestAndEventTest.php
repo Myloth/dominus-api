@@ -3,14 +3,34 @@
 namespace App\Tests\Api;
 
 use ApiPlatform\Symfony\Bundle\Test\ApiTestCase;
+use App\Entity\EntityType;
 use App\Entity\User\Group;
 use App\Entity\User\Role;
 use App\Entity\User\User;
+use App\Enum\EntityTypeEnum;
 use App\Enum\RoleEnum;
 use Doctrine\ORM\EntityManagerInterface;
 
 class QuestAndEventTest extends ApiTestCase
 {
+    private function getOrCreateEntityType(EntityTypeEnum $typeEnum): EntityType
+    {
+        $container = static::getContainer();
+        /** @var EntityManagerInterface $em */
+        $em = $container->get('doctrine.orm.entity_manager');
+
+        $entityType = $em->getRepository(EntityType::class)->findOneBy(['slug' => $typeEnum->value]);
+        if (null === $entityType) {
+            $entityType = new EntityType();
+            $entityType->setName($typeEnum->label());
+            $entityType->setSlug($typeEnum->value);
+            $em->persist($entityType);
+            $em->flush();
+        }
+
+        return $entityType;
+    }
+
     private function createAdminUser(): User
     {
         $container = static::getContainer();
@@ -107,12 +127,12 @@ class QuestAndEventTest extends ApiTestCase
         $admin = $this->createAdminUser();
 
         // 1. Create a Tag to link
+        $questType = $this->getOrCreateEntityType(EntityTypeEnum::QUEST);
         $tagResponse = $client->request('POST', '/tags', [
             'auth_basic' => [$admin->getUsername(), 'password123'],
             'json' => [
-                'name' => 'Main Quest Tag',
-                'slug' => 'main-quest-tag-'.uniqid(),
-                'entityType' => 'quest',
+                'name' => 'Main Quest Tag '.uniqid(),
+                'entityTypes' => ['/entity_types/'.$questType->getId()],
             ],
             'headers' => [
                 'Content-Type' => 'application/ld+json',
